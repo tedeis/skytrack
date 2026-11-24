@@ -4,8 +4,8 @@ Detecting people and vehicles in drone footage, where most objects are only a fe
 Built on the [VisDrone2019-DET](https://github.com/VisDrone/VisDrone-Dataset) dataset with
 [Ultralytics YOLO](https://docs.ultralytics.com/).
 
-**Status: in progress.** Data exploration, preprocessing and a baseline detector are done.
-Multi-object tracking is next.
+**Status: in progress.** Data exploration, preprocessing and a baseline detector are done and
+evaluated. A multi-object tracker is implemented and unit-tested; evaluating it on VisDrone2019-MOT is next.
 
 ![Baseline predictions on validation images](docs/baseline_val_predictions.jpg)
 
@@ -68,11 +68,32 @@ about 5.5 hours.
 |---|---|
 | ![Training curves](docs/baseline_training_curves.png) | ![Confusion matrix](docs/baseline_confusion_matrix.png) |
 
+## Multi-object tracking
+
+[`src/skytrack/tracking/`](src/skytrack/tracking/) links detections across video frames into tracks.
+Drone footage breaks standard trackers in two ways, and the tracker addresses both:
+
+| Component | Problem it solves | File |
+|---|---|---|
+| Kalman filter (constant velocity) | Predicts where each object will be in the next frame | [`kalman.py`](src/skytrack/tracking/kalman.py) |
+| Camera motion compensation | Most apparent motion comes from the drone, not the targets, so predictions land in the wrong place. Background motion is estimated with sparse optical flow and removed. | [`cmc.py`](src/skytrack/tracking/cmc.py) |
+| BYTE two-stage association | Blur and occlusion lower detection confidence. High-confidence boxes are matched first, then low-confidence ones keep existing tracks alive. | [`byte_tracker.py`](src/skytrack/tracking/byte_tracker.py) |
+| Buffered IoU + Hungarian matching | Small, fast objects often don't overlap their own prediction, so boxes are slightly enlarged before IoU matching. | [`matching.py`](src/skytrack/tracking/matching.py) |
+
+Each component can be switched off for an ablation study. Evaluation (MOTA, IDF1, ID switches) on
+VisDrone2019-MOT is in [`eval/mot.py`](src/skytrack/eval/mot.py); tracking results will be added
+here once that run is done. Unit tests in [`tests/`](tests/) check the components on synthetic
+scenes with known ground truth, including a panning camera:
+
+```bash
+pytest -q
+```
+
 ## Reproduce
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e .
+pip install -e ".[detect,dev]"
 
 # Download VisDrone2019-DET (train and val) into data/raw/
 curl -L -o data/raw/train.zip https://github.com/ultralytics/assets/releases/download/v0.0.0/VisDrone2019-DET-train.zip
@@ -95,7 +116,13 @@ yolo detect train data=visdrone.yaml model=yolo11n.pt epochs=50 imgsz=640 batch=
 ## Project layout
 
 ```
-src/skytrack/visdrone.py   loading, drawing and YOLO conversion
+src/skytrack/visdrone.py   loading, drawing and YOLO conversion (used for the results above)
+src/skytrack/tracking/     Kalman filter, camera motion compensation, matching, BYTE tracker
+src/skytrack/eval/         tracking metrics (MOTA, IDF1) and robustness tests
+src/skytrack/data/         VisDrone MOT loading and image degradations (blur, noise, low light)
+src/skytrack/detection.py  YOLO wrapper with tiled (sliced) inference
+src/skytrack/cli.py        `skytrack` command line: track, eval-mot, ablate, robustness, benchmark
+tests/                     unit tests (run with pytest)
 Notebooks/01_explore       dataset exploration and object-size analysis
 Notebooks/02_processing    cleaning rules and conversion checks
 Notebooks/03_baseline      baseline training and evaluation
@@ -105,6 +132,6 @@ docs/                      result plots used in this README
 
 ## Next steps
 
-- Higher input resolution or image tiling to help the smallest objects
-- Multi-object tracking on VisDrone2019-MOT (IoU matching, Kalman filter, camera-motion compensation)
-- Tracking metrics (MOTA, IDF1) and robustness tests (blur, low light, noise)
+- Higher input resolution or tiled inference to help the smallest objects
+- Run the tracker on VisDrone2019-MOT and report MOTA, IDF1 and the ablation table
+- Robustness tests: how detection accuracy drops under blur, low light and noise

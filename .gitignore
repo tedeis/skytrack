@@ -6,8 +6,8 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data and training output (large; rebuilt from the steps in the README)
-data/
-runs/
+/data/
+/runs/
 Notebooks/runs/
 *.pt
 

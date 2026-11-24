@@ -5,8 +5,29 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "skytrack"
 version = "0.1.0"
+description = "Small-object detection and multi-object tracking for aerial (UAV) imagery"
 requires-python = ">=3.10"
-dependencies = ["numpy", "pandas", "opencv-python-headless", "matplotlib", "pillow", "ultralytics"]
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "opencv-python-headless",
+    "matplotlib",
+    "pillow",
+    "pyyaml",
+    "motmetrics",
+]
+
+[project.optional-dependencies]
+# Detector training and inference (pulls in PyTorch, so kept optional)
+detect = ["ultralytics", "onnx", "onnxruntime"]
+dev = ["pytest"]
+
+[project.scripts]
+skytrack = "skytrack.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
